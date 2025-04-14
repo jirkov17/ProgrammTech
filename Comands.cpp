@@ -1,256 +1,321 @@
-#include "Comands.hpp"
-#include <algorithm>
-#include <functional>
-#include <iterator>
-#include <stdexcept>
+#include "commands.hpp"
+#include <iostream>
+#include <fstream>
+#include "list.hpp"
 
-void jirkov::addDictionary(std::istream& in, std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
+using dictionary = BST< std::string, std::string >;
+
+void jirkov::help(std::ostream& output)
 {
-  std::string name = "";
-  in >> name;
-  if (dictionaries.find(name) != dictionaries.end())
-  {
-    throw std::logic_error("<ALREADY EXISTS>");
-  }
-  std::map< std::string, std::vector< std::string > > new_dict = {};
-  dictionaries[name] = new_dict;
+  output << "1) help - output of available commands\n";
+  output << "2) create <name> - create a dictionary named name\n";
+  output << "3) remove <name> - delete a dictionary named name\n";
+  output << "4) print <name> - output the contents of the dictionary named name\n";
+  output << "5) sort <frequency> <name> - sort the dictionary by frequency\n";
+  output << "6) sort <alphabet> <name> - sort the dictionary by alphabet\n";
+  output << "7) delete <key> - delete the element\n";
+  output << "8) find <key> - output the frequency of an element\n";
+  output << "9) top <name> - output of the tree most common words\n";
+  output << "10) open <filename> - open a file to create dictionary from its contents\n";
+  output << "11) write <filename> - open a file to write a dictionary\n";
+  output << "12) stop - close the dictionary to edit\n";
+  output << "13) save - shut down a file, exit edit module, save data\n";
 }
 
-void jirkov::deleteDictionary(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
+void jirkov::createDict(BST< std::string, dictionary >& dicts, std::istream& input, std::ostream& output)
 {
-  std::string name = "";
-  in >> name;
-  if (dictionaries.find(name) == dictionaries.end())
+  std::string dictName;
+  input >> dictName;
+  if (!input)
   {
-    throw std::logic_error("<BOOK NOT FOUND>");
+    return;
   }
-  dictionaries.erase(name);
-}
-
-void jirkov::addWord(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
-{
-  std::string name = "";
-  in >> name;
-  if (dictionaries.find(name) == dictionaries.end())
-  {
-    throw std::logic_error("<BOOK NOT FOUND>");
-  }
-  std::map< std::string, std::vector< std::string > >& needed_dict = dictionaries[name];
-  std::string word = "";
-  std::string translation = "";
-  in >> word >> translation;
-  needed_dict[word].push_back(translation);
-}
-
-void jirkov::removeWord(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
-{
-  std::string name = "";
-  in >> name;
-  if (dictionaries.find(name) == dictionaries.end())
-  {
-    throw std::logic_error("<BOOK NOT FOUND>");
-  }
-  std::map< std::string, std::vector< std::string > >& needed_dict = dictionaries[name];
-  std::string word = "";
-  in >> word;
-  if (needed_dict.find(word) == needed_dict.end())
-  {
-    throw std::logic_error("<WORD NOT FOUND>");
-  }
-  needed_dict.erase(word);
-}
-
-void jirkov::translate(std::ostream& out,
-    std::istream& in,
-    const std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
-{
-  std::string name = "";
-  std::string eng_word = "";
-  in >> name >> eng_word;
-  if (dictionaries.find(name) == dictionaries.end())
-  {
-    throw std::logic_error("<BOOK NOT FOUND>");
-  }
-  const std::map< std::string, std::vector< std::string > >& needed_dict = dictionaries.at(name);
-
-  if (needed_dict.find(eng_word) == needed_dict.end())
-  {
-    throw std::logic_error("<WORD NOT FOUND>");
-  }
-  const std::vector< std::string > translations = needed_dict.at(eng_word);
-  out << eng_word << " ";
-  std::copy(translations.cbegin(), translations.cend(), std::ostream_iterator< std::string >(out, " "));
-  out << "\n";
-  return;
-}
-
-void mergeEntry(std::map< std::string, std::vector< std::string > >& first,
-    const std::pair< const std::string, std::vector< std::string > >& entry)
-{
-  const std::string& key = entry.first;
-  const std::vector< std::string >& values = entry.second;
-
-  if (first.find(key) != first.end())
-  {
-    first[key].insert(first[key].end(), values.begin(), values.end());
-  }
-  else
-  {
-    first[key] = values;
-  }
-}
-
-void jirkov::mergeDictionaries(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
-{
-  std::string first_name = "";
-  std::string second_name = "";
-  std::map< std::string, std::vector< std::string > > result = {};
-  in >> first_name >> second_name;
-  if (dictionaries.find(first_name) == dictionaries.end() || dictionaries.find(second_name) == dictionaries.end())
-  {
-    throw std::logic_error("<BOOK NOT FOUND>");
-  }
-  std::map< std::string, std::vector< std::string > >& first = dictionaries[first_name];
-  const std::map< std::string, std::vector< std::string > >& second = dictionaries[second_name];
-  std::for_each(second.cbegin(), second.cend(), std::bind(mergeEntry, std::ref(first), std::placeholders::_1));
-}
-
-bool isCommonTranslation(const std::string& translation, const std::vector< std::string >& second_translations)
-{
-  return std::find(second_translations.begin(), second_translations.end(), translation) != second_translations.end();
-}
-
-void insertCommonTranslations(std::map< std::string, std::vector< std::string > >& result_dict,
-    const std::pair< const std::string, std::vector< std::string > >& entry,
-    const std::map< std::string, std::vector< std::string > >& second_dict)
-{
-  const std::string& word = entry.first;
-  const std::vector< std::string >& first_translations = entry.second;
-
-  auto it2 = second_dict.find(word);
-  if (it2 != second_dict.end())
-  {
-    const std::vector< std::string >& second_translations = it2->second;
-    std::vector< std::string > common_translations;
-    std::copy_if(first_translations.begin(), first_translations.end(), std::back_inserter(common_translations),
-        std::bind(isCommonTranslation, std::placeholders::_1, std::cref(second_translations)));
-    if (!common_translations.empty())
-    {
-      result_dict[word] = common_translations;
-    }
-  }
-}
-
-void jirkov::getIntersection(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
-{
-  std::string new_dict_name, first_name, second_name;
-  in >> new_dict_name >> first_name >> second_name;
-
-  if (dictionaries.find(first_name) == dictionaries.end() || dictionaries.find(second_name) == dictionaries.end())
-  {
-    throw std::logic_error("<BOOK NOT FOUND>");
-  }
-
-  const std::map< std::string, std::vector< std::string > >& first_dict = dictionaries[first_name];
-  const std::map< std::string, std::vector< std::string > >& second_dict = dictionaries[second_name];
-  std::map< std::string, std::vector< std::string > > result_dict = {};
+  dicts.insert(dictName, dictionary());
+  dictionary currentDict = dicts.at(dictName).second;
   using namespace std::placeholders;
-  std::for_each(first_dict.begin(), first_dict.end(),
-      std::bind(insertCommonTranslations, std::ref(result_dict), _1, std::cref(second_dict)));
-  dictionaries[new_dict_name] = result_dict;
-}
-
-bool keyNotInMap(const std::map< std::string, std::vector< std::string > >& map, const std::string& key)
-{
-  return map.find(key) == map.end();
-}
-
-void jirkov::getCombining(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
-{
-  std::string new_dict_name, first_name, second_name;
-  in >> new_dict_name >> first_name >> second_name;
-  if (dictionaries.find(first_name) == dictionaries.end() || dictionaries.find(second_name) == dictionaries.end())
+  BST< std::string, std::function< void(dictionary&, std::istream&, std::ostream&) > > cmdDict;
+  cmdDict.insert("delete", std::bind(jirkov::deleteKey, _1, _2, _3));
+  cmdDict.insert("find", std::bind(jirkov::findKey, _1, _2, _3));
+  cmdDict.insert("open", std::bind(jirkov::openFile, _1, _2, _3));
+  std::string cmdType;
+  while (input >> cmdType && cmdType != "stop")
   {
-    throw std::logic_error("<BOOK NOT FOUND>");
-  }
-
-  const std::map< std::string, std::vector< std::string > >& first_dict = dictionaries[first_name];
-  const std::map< std::string, std::vector< std::string > >& second_dict = dictionaries[second_name];
-  std::map< std::string, std::vector< std::string > > result_dict = {};
-  auto pred = std::bind(keyNotInMap, std::cref(result_dict), std::placeholders::_1);
-  std::copy(first_dict.begin(), first_dict.end(), std::inserter(result_dict, result_dict.end()));
-  std::copy_if(second_dict.begin(), second_dict.end(), std::inserter(result_dict, result_dict.end()),
-      [&pred](const auto& entry) {
-        return pred(entry.first);
-      });
-
-  dictionaries[new_dict_name] = result_dict;
-}
-
-std::vector< std::string > computeDifference(const std::vector< std::string >& v1, const std::vector< std::string >& v2)
-{
-  std::vector< std::string > difference;
-  std::set_difference(v1.begin(), v1.end(), v2.begin(), v2.end(), std::back_inserter(difference));
-  return difference;
-}
-
-void handleTranslationComparison(const std::map< std::string, std::vector< std::string > >& first_dict,
-    const std::map< std::string, std::vector< std::string > >& second_dict,
-    std::map< std::string, std::vector< std::string > >& result_dict)
-{
-  std::for_each(first_dict.begin(), first_dict.end(), [&](const auto& pair) {
-    auto second_it = second_dict.find(pair.first);
-    if (second_it != second_dict.end())
+    if (cmdDict.find(cmdType) != cmdDict.cend())
     {
-      const auto& second_translations = second_it->second;
-      std::vector< std::string > diff = computeDifference(pair.second, second_translations);
-      if (!diff.empty())
-      {
-        result_dict[pair.first] = diff;
-      }
+      cmdDict.at(cmdType).second(currentDict, input, output);
+      dicts.erase(dictName);
+      dicts.insert(dictName, currentDict);
     }
     else
     {
-      result_dict[pair.first] = pair.second;
+      warningDict(output);
+      input.clear();
+      input.ignore(std::numeric_limits< std::streamsize >::max(), '\n');
     }
-  });
+  }
 }
 
-void jirkov::getDifference(std::istream& in,
-    std::map< std::string, std::map< std::string, std::vector< std::string > > >& dictionaries)
+void jirkov::deleteKey(dictionary& dict, std::istream& input, std::ostream& output)
 {
-  std::string new_dict_name = "";
-  std::string first_name = "";
-  std::string second_name = "";
-  std::string comparison_type = "";
-  in >> new_dict_name >> first_name >> second_name >> comparison_type;
-
-  if (dictionaries.find(first_name) == dictionaries.end() || dictionaries.find(second_name) == dictionaries.end())
+  std::string key;
+  input >> key;
+  if (dict.find(key) == dict.cend())
   {
-    throw std::logic_error("<BOOK NOT FOUND>");
+    warningElem(output);
+    return;
   }
+  dict.erase(key);
+}
 
-  const std::map< std::string, std::vector< std::string > >& first_dict = dictionaries[first_name];
-  const std::map< std::string, std::vector< std::string > >& second_dict = dictionaries[second_name];
-  std::map< std::string, std::vector< std::string > > result_dict = {};
-
-  if (comparison_type == "translation")
+void jirkov::findKey(dictionary& dict, std::istream& input, std::ostream& output)
+{
+  std::string key;
+  input >> key;
+  if (dict.find(key) == dict.cend() || dict.find(key)->second.empty())
   {
-    handleTranslationComparison(first_dict, second_dict, result_dict);
+    warningElem(output);
+    return;
+  }
+  output << dict.find(key)->second << "\n";
+}
+
+void jirkov::openFile(dictionary& dict, std::istream& input, std::ostream& output)
+{
+  std::string word;
+  List< std::string > words;
+  std::string filename;
+  input >> filename;
+  std::ifstream in(filename);
+  if (!in)
+  {
+    warningFile(output);
+    return;
+  }
+  while (in >> word)
+  {
+    std::string lowercaseWord = "";
+    for (char c : word)
+    {
+      lowercaseWord += std::tolower(c);
+    }
+    std::string result = "";
+    for (char c : lowercaseWord)
+    {
+      if (std::isalnum(c))
+      {
+        result += c;
+      }
+    }
+    words.pushBack(result);
+  }
+  for (List< std::string >::Iterator it = words.begin(); it != List< std::string >::ConstIterator(); it++)
+  {
+    size_t frequency = 0;
+    for (List< std::string >::Iterator sIt = words.begin(); sIt != List< std::string >::ConstIterator(); sIt++)
+    {
+      if (*sIt == *it)
+      {
+        frequency++;
+      }
+    }
+    if (dict.find(*it) == dict.cend())
+    {
+      dict.insert(*it, std::to_string(frequency));
+    }
+  }
+}
+
+void jirkov::writeToFile(const BST< std::string, dictionary >& dicts, std::istream& in, std::ostream& out)
+{
+  std::string filename;
+  in >> filename;
+  std::ofstream output;
+  output.open(filename, std::ios::app);
+  if (!output)
+  {
+    warningFile(out);
+    return;
+  }
+  std::string dictName;
+  in >> dictName;
+  if (dicts.constFind(dictName) == dicts.cend())
+  {
+    warningDict(out);
+    return;
+  }
+  dictionary dict = dicts.constFind(dictName)->second;
+  output << "\n" << dictName << "\n";
+  for (auto it = dict.begin(); it != dict.end(); it++)
+  {
+    output << it->first << ": " << it->second << "\n";
+  }
+  output.close();
+}
+
+void jirkov::removeDict(BST< std::string, dictionary >& dicts, std::istream& in, std::ostream& out)
+{
+  std::string dictName;
+  in >> dictName;
+  if (dicts.find(dictName) == dicts.cend())
+  {
+    warningDict(out);
+    return;
+  }
+  dicts.erase(dictName);
+}
+
+void jirkov::printDict(const BST< std::string, dictionary >& dicts, std::istream& in, std::ostream& out)
+{
+  std::string dictName;
+  in >> dictName;
+  if (dicts.constFind(dictName) == dicts.cend())
+  {
+    warningDict(out);
+    return;
+  }
+  dictionary dictToPrint = dicts.constFind(dictName)->second;
+  out << dictName << "\n";
+  if (dictToPrint.isEmpty())
+  {
+    return;
+  }
+  for (auto it = dictToPrint.begin(); it != dictToPrint.end(); it++)
+  {
+    out << it->first << ": " << it->second << "\n";
+  }
+}
+
+void jirkov::sortDict(BST< std::string, dictionary >& dicts, std::istream& input, std::ostream& output)
+{
+  using namespace std::placeholders;
+  using func = std::function< void(BST< std::string, dictionary >&, std::istream&, std::ostream&) >;
+  BST< std::string, func > cmdSort;
+  cmdSort.insert("frequency", std::bind(jirkov::sortByFrequency, _1, _2, _3));
+  cmdSort.insert("alphabet", std::bind(jirkov::sortByAlphabet, _1, _2, _3));
+  std::string sortType;
+  input >> sortType;
+  if (dicts.isEmpty())
+  {
+    warningDict(output);
   }
   else
   {
-    std::set_difference(first_dict.begin(), first_dict.end(), second_dict.begin(), second_dict.end(),
-        std::inserter(result_dict, result_dict.end()),
-        [](const auto& lhs, const auto& rhs) {
-          return lhs.first < rhs.first;
-        });
+    cmdSort.at(sortType).second(dicts, input, output);
   }
-  dictionaries[new_dict_name] = result_dict;
+}
+
+void jirkov::sortByFrequency(BST< std::string, dictionary >& dicts, std::istream& in, std::ostream& out)
+{
+  std::string dictName;
+  in >> dictName;
+  if (dicts.find(dictName) == dicts.cend())
+  {
+    warningDict(out);
+    return;
+  }
+  dictionary dictToSort = dicts.find(dictName)->second;
+  if (dictToSort.isEmpty() || std::isdigit(dictToSort.begin()->first[0]))
+  {
+    return;
+  }
+  out << dictName << "\n";
+  BST< std::string, std::string > temp;
+  for (auto it = dictToSort.begin(); it != dictToSort.end(); it++)
+  {
+    temp.insert(it->first, it->second);
+  }
+  size_t i = 0;
+  while (i != temp.getSize())
+  {
+    auto maxIter = temp.begin();
+    for (auto iter = temp.begin(); iter != temp.end(); ++iter)
+    {
+      if (std::stoll(iter->second) > std::stoll(maxIter->second) && std::stoll(iter->second) != 0)
+      {
+        maxIter = iter;
+      }
+    }
+    out << maxIter->first << ": " << maxIter->second << "\n";
+    temp.at(maxIter->first).second = "0";
+    i++;
+  }
+}
+
+void jirkov::sortByAlphabet(BST< std::string, dictionary >& dicts, std::istream& in, std::ostream& out)
+{
+  std::string dictName;
+  in >> dictName;
+  if (dicts.find(dictName) == dicts.cend())
+  {
+    warningDict(out);
+    return;
+  }
+  dictionary dictToSort = dicts.find(dictName)->second;
+  if (dictToSort.isEmpty() || !std::isdigit(dictToSort.begin()->first[0]))
+  {
+    out << "The dictionary is already sorted\n";
+    return;
+  }
+  BST< std::string, std::string > temp;
+  for (auto it = dictToSort.begin(); it != dictToSort.end(); it++)
+  {
+    temp.insert(it->second, it->first);
+  }
+  out << dictName << "\n";
+  for (auto it = temp.begin(); it != temp.end(); it++)
+  {
+    out << it->first << ": " << it->second << "\n";
+  }
+}
+
+void jirkov::printTop(BST< std::string, dictionary >& dicts, std::istream& in, std::ostream& out)
+{
+  std::string dictName;
+  in >> dictName;
+  if (dicts.find(dictName) == dicts.cend())
+  {
+    warningDict(out);
+    return;
+  }
+  dictionary dictToSort = dicts.find(dictName)->second;
+  BST< std::string, std::string > temp;
+  for (auto it = dictToSort.begin(); it != dictToSort.end(); it++)
+  {
+    temp.insert(it->first, it->second);
+  }
+  size_t i = 0;
+  while (i < 3)
+  {
+    auto maxIter = temp.begin();
+    for (auto iter = temp.begin(); iter != temp.end(); ++iter)
+    {
+      if (std::stoll(iter->second) > std::stoll(maxIter->second) && std::stoll(iter->second) != 0)
+      {
+        maxIter = iter;
+      }
+    }
+    out << maxIter->first << ": " << maxIter->second << "\n";
+    temp.at(maxIter->first).second = "0";
+    i++;
+  }
+}
+
+void jirkov::warningDict(std::ostream& output)
+{
+  output << "Dictionary does not exist\n";
+}
+
+void jirkov::warningElem(std::ostream& output)
+{
+  output << "Element does not exist\n";
+}
+
+void jirkov::warningFile(std::ostream& output)
+{
+  output << "File does not exist\n";
+}
+
+void jirkov::warningInvCom(std::ostream& output)
+{
+  output << "<INVALID COMMAND>\n";
 }

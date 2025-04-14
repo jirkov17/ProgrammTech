@@ -1,21 +1,25 @@
-#ifndef COMANDS_HPP
-#define COMANDS_HPP
-#include <iostream>
+#ifndef COMMANDS_HPP
+#define COMMANDS_HPP
+#include <iosfwd>
 #include <map>
 #include <string>
-#include <vector>
 
 namespace jirkov
 {
-  void addDictionary(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void deleteDictionary(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void addWord(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void removeWord(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void translate(std::ostream&, std::istream&, const std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void mergeDictionaries(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void getIntersection(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void getCombining(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
-  void getDifference(std::istream&, std::map< std::string, std::map< std::string, std::vector< std::string > > >&);
+  using dictionary = std::multimap< std::string, std::string >;
+  void help(std::istream& input, std::ostream& output);
+  void createDict(std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void removeDict(std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void printDict(const std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void sortDict(std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void sortByFrequency(std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void sortByAlphabet(std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void deleteKey(dictionary& dict, std::istream& input, std::ostream& output);
+  void findKey(dictionary& dict, std::istream& input, std::ostream& output);
+  void openFile(dictionary& dict, std::istream& input, std::ostream& output);
+  void writeToFile(const std::map< std::string, dictionary >& dicts, std::istream& input, std::ostream& output);
+  void printTop(std::map< std::string, dictionary >& dicts, std::istream& in, std::ostream& out);
+  void warning(std::ostream& output, const std::string& mes);
 }
 
 #endif
